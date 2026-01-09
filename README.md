@@ -1,7 +1,7 @@
 ## 🚀 Quick Start
 
 # Checkout main branch (production app)
-git checkout main
+git checkout main </b>
 pip install -r requirements.txt
 python run.py
 

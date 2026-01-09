@@ -4,7 +4,7 @@ SemanticTrainSys/
 ├── semantic_adapter.py       # Main training script # Please Change your name on PERSON_ID on Configuration Line#640-650 IMPORTANT
 ├── dataset/
 │   ├── images_color/         # Original color images
-│   ├── images_gray/          # Auto-generated grayscale
+│   ├── images_gray/          # Auto-generated grayscale 
 │   └── seg_maps/             # Auto-generated segmentation maps
 ├── checkpoints/              # Trained model checkpoints
 └── README.md

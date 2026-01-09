@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mood Play by SynaptechX</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+        }
+        h1 { text-align: center; margin-bottom: 20px; }
+        .warning {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .upload {
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        .upload:hover { background: #f8f9ff; }
+        input[type="file"] { display: none; }
+        button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:disabled { background: #ccc; }
+        .results {
+            display: none;
+            margin-top: 30px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        .box {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        .box img { width: 100%; border-radius: 5px; }
+        .loading { display: none; text-align: center; margin: 20px; }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Mood Play</h1>
+        <div class="warning">Demo Mode - Model not integrated yet</div>
+        
+        <div class="upload" id="upload">
+            <h2>Click to Upload Image</h2>
+            <p>PNG, JPG, JPEG</p>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+        
+        <div style="text-align: center;">
+            <button id="processBtn" disabled>Process Image</button>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Processing...</p>
+        </div>
+        
+        <div class="results" id="results">
+            <h2>Results</h2>
+            <div class="grid">
+                <div class="box">
+                    <h3>Original</h3>
+                    <img id="img1">
+                </div>
+                <div class="box">
+                    <h3>Grayscale</h3>
+                    <img id="img2">
+                </div>
+                <div class="box">
+                    <h3>Segmentation</h3>
+                    <img id="img3">
+                </div>
+                <div class="box">
+                    <h3>Colorized</h3>
+                    <img id="img4">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const upload = document.getElementById('upload');
+        const fileInput = document.getElementById('fileInput');
+        const processBtn = document.getElementById('processBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        let file = null;
+        
+        upload.onclick = () => fileInput.click();
+        
+        fileInput.onchange = (e) => {
+            file = e.target.files[0];
+            if (file) {
+                upload.innerHTML = '<h2>' + file.name + '</h2><p>Click to change</p>';
+                processBtn.disabled = false;
+            }
+        };
+        
+        processBtn.onclick = async () => {
+            if (!file) return;
+            
+            loading.style.display = 'block';
+            results.style.display = 'none';
+            processBtn.disabled = true;
+            
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            try {
+                const res = await fetch('/process', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    document.getElementById('img1').src = data.original;
+                    document.getElementById('img2').src = data.grayscale;
+                    document.getElementById('img3').src = data.segmentation;
+                    document.getElementById('img4').src = data.colorized;
+                    results.style.display = 'block';
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            } finally {
+                loading.style.display = 'none';
+                processBtn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>

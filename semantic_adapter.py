@@ -639,7 +639,7 @@ if __name__ == "__main__":
     # ========================================================================
     
     # IMPORTANT: Each team member should set their own person_id!
-    PERSON_ID = "Tristan"  # Change this for each person: "alice", "bob", "charlie", etc.
+    PERSON_ID = "Tristan"  # Change this for each person
     
     CONFIG = {
         # Paths (each person can use their own dataset)

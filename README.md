@@ -1,9 +1,9 @@
 ## 🚀 Quick Start
 
 # Checkout main branch (production app)
-git checkout main </b>
-pip install -r requirements.txt
-python run.py
+git checkout main <br/>
+pip install -r requirements.txt  <br/>
+python run.py <br/>
 
 # Open browser
 http://localhost:5000

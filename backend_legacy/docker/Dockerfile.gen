@@ -1,0 +1,49 @@
+# Generation Worker Container
+# Using Python 3.11 for Stable Diffusion / ControlNet / LoRA compatibility
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System dependencies
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    ffmpeg \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PyTorch with CUDA 12.1 support
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Install Diffusers and ControlNet dependencies
+RUN pip install \
+    diffusers \
+    transformers \
+    accelerate \
+    safetensors \
+    peft
+
+# Install ControlNet preprocessing utilities
+RUN pip install controlnet-aux
+
+# Install optical flow dependencies (RAFT)
+RUN pip install kornia  # Lightweight alternative to full RAFT
+
+# Install CLIP for temporal consistency checking
+RUN pip install open_clip_torch
+
+# Core dependencies
+RUN pip install \
+    opencv-python \
+    numpy \
+    pillow \
+    celery \
+    redis
+
+# Memory optimization
+RUN pip install xformers --index-url https://download.pytorch.org/whl/cu121 || true
+
+COPY . /app
+
+# Default command for Celery worker
+CMD ["celery", "-A", "backend.workers.tasks_gen.celery_app", "worker", "--loglevel=info", "-Q", "generation_queue"]

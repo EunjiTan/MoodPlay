@@ -1,0 +1,114 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    restart: always
+
+  backend-api:
+    build:
+      context: .
+      dockerfile: backend/docker/Dockerfile.api
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app/backend
+      - ./frontend:/app/frontend
+      - ./uploads:/app/uploads
+      - ./results:/app/results
+    environment:
+      - FLASK_ENV=development
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  worker-sam2:
+    build:
+      context: .
+      dockerfile: backend/docker/Dockerfile.sam3
+    command: celery -A backend.workers.tasks_seg.celery_app worker --loglevel=info -Q sam3_queue --concurrency=1
+    volumes:
+      - ./checkpoints:/app/checkpoints
+      - ./configs:/app/configs
+      - ./backend:/app/backend
+      - ./uploads:/app/uploads
+      - ./results:/app/results
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CUDA_VISIBLE_DEVICES=0
+      # SAM-2 Model Configuration
+      - SAM2_MODEL_SIZE=large
+      - SAM2_CHECKPOINT=checkpoints/sam2_hiera_large.pt
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+        limits:
+          memory: 8G
+    depends_on:
+      - redis
+    # Healthcheck for GPU availability
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import torch; assert torch.cuda.is_available()" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  worker-generation:
+    build:
+      context: .
+      dockerfile: backend/docker/Dockerfile.gen
+    command: celery -A backend.workers.tasks_gen.celery_app worker --loglevel=info -Q generation_queue --concurrency=1
+    volumes:
+      - ./checkpoints:/app/checkpoints
+      - ./lora:/app/lora
+      - ./backend:/app/backend
+      - ./uploads:/app/uploads
+      - ./results:/app/results
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CUDA_VISIBLE_DEVICES=0
+      # Stable Diffusion Configuration
+      - SD_MODEL_ID=runwayml/stable-diffusion-v1-5
+      - CONTROLNET_ID=lllyasviel/sd-controlnet-canny
+      # LoRA Paths
+      - LORA_COLORIZATION_PATH=lora/colorization_v1.safetensors
+      # Memory Optimization
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+        limits:
+          memory: 16G
+    depends_on:
+      - redis
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import torch; assert torch.cuda.is_available()" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Optional: Flower for Celery monitoring
+  flower:
+    image: mher/flower:0.9.7
+    command: celery flower --broker=redis://redis:6379/0 --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    profiles:
+      - monitoring
+
+# Named volumes for model caching
+volumes:
+  huggingface_cache:
+    driver: local

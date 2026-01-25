@@ -1,7 +1,28 @@
-REQUIREMENTS = '''
-flask==3.0.0
-flask-cors==4.0.0
-opencv-python==4.8.1.78
-pillow==10.1.0
-numpy==1.24.3
-'''
+# Core
+fastapi
+uvicorn[standard]
+python-multipart
+websockets
+jinja2
+numpy
+opencv-python-headless
+Pillow
+
+# AI / ML
+torch
+torchvision
+torchaudio
+--extra-index-url https://download.pytorch.org/whl/cu121
+
+# SAM-3 / SAM-2
+# Note: Real SAM install usually requires git clone, but we listing dependencies here
+pyyaml
+matplotlib
+tqdm
+
+# VideoControlNet
+diffusers
+transformers
+accelerate
+safetensors
+scipy

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import shutil
@@ -7,6 +7,8 @@ import os
 # Import Service (Local Monolith style)
 # Ensure backend is in path if running from root
 from backend.services.sam3_service import sam3_service
+from backend.services.video_pipeline import video_pipeline
+import uuid
 
 from fastapi.staticfiles import StaticFiles
 
@@ -76,4 +78,28 @@ def generate_video(req: GenerateRequest):
         return {"status": "ControlNet Loaded", "message": "Ready to process"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/process/{session_id}")
+async def start_processing(session_id: str, video_path: str):
+    """Start video processing pipeline."""
+    if not os.path.exists(video_path):
+        raise HTTPException(status_code=404, detail="Video not found")
+    return {"status": "ready", "session_id": session_id}
+
+@app.websocket("/ws/process/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, session_id: str):
+    await websocket.accept()
+    try:
+        # Wait for "start" message with video_path
+        data = await websocket.receive_json()
+        if data.get("command") == "start":
+            video_path = data.get("video_path")
+            
+            # Start pipeline
+            await video_pipeline.process_video(video_path, session_id, websocket)
+            
+    except WebSocketDisconnect:
+        print(f"Client disconnected: {session_id}")
+    except Exception as e:
+        print(f"WS Error: {e}")
 

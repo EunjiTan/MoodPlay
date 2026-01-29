@@ -90,5 +90,40 @@ class SAM3Service:
              
         return {"status": "propagation_complete", "frames_processed": len(results)}
 
+    def segment_frame_boxes(self, frame_idx, detections):
+        """
+        Segment objects in a frame using bounding boxes.
+        detections: List of dicts with 'box' (x1,y1,x2,y2) and 'class_id'/'track_id'.
+        """
+        if not self.inference_state:
+            raise RuntimeError("Session not initialized")
+            
+        masks = {}
+        
+        for i, det in enumerate(detections):
+            # Use track_id if available, else generate temporary ID based on index
+            obj_id = int(det.get('track_id', i + 1))
+            box = np.array(det['box'], dtype=np.float32)
+            
+            _, out_obj_ids, out_mask_logits = self.predictor.add_new_points_or_box(
+                inference_state=self.inference_state,
+                frame_idx=frame_idx,
+                obj_id=obj_id,
+                box=box
+            )
+            
+            # Retrieve mask for this object
+            # out_mask_logits is [N, H, W], we take the one corresponding to obj_id
+            # Note: add_new_points_or_box returns masks for *all* objects in the interaction
+            # but usually we just care about the one we added or all current ones.
+            
+            # Simple assumption: We care about the result for the current object
+            # Convert logits to boolean mask
+            mask = (out_mask_logits[out_obj_ids.index(obj_id)] > 0.0).cpu().numpy().squeeze()
+            masks[obj_id] = mask
+
+        return masks
+
+
 # Global Instance
 sam3_service = SAM3Service()

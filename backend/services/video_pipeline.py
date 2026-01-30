@@ -2,8 +2,10 @@
 import os
 import cv2
 import time
+import numpy as np
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from PIL import Image
 from .yolo_service import yolo_service
 from .sam3_service import sam3_service
 from ..utils.video_processor import VideoProcessor

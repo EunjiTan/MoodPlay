@@ -27,3 +27,5 @@ accelerate
 safetensors
 scipy
 ultralytics
+decord
+lapx

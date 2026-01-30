@@ -8,6 +8,7 @@ import os
 # Ensure backend is in path if running from root
 from backend.services.sam3_service import sam3_service
 from backend.services.video_pipeline import video_pipeline
+from backend.services.colorization_pipeline import colorization_pipeline
 import uuid
 
 from fastapi.staticfiles import StaticFiles
@@ -102,4 +103,41 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         print(f"Client disconnected: {session_id}")
     except Exception as e:
         print(f"WS Error: {e}")
+
+# Colorization Endpoints
+@app.post("/colorize/{session_id}")
+async def start_colorization(session_id: str, video_path: str, prompt: str = "vibrant colors, natural lighting"):
+    """
+    Start colorization process for uploaded video.
+    """
+    return {"session_id": session_id, "status": "started", "message": "Connect to WebSocket for progress"}
+
+@app.websocket("/ws/colorize/{session_id}")
+async def colorize_websocket(websocket: WebSocket, session_id: str):
+    """
+    WebSocket endpoint for real-time colorization progress.
+    """
+    await websocket.accept()
+    try:
+        # Receive start command with parameters
+        data = await websocket.receive_json()
+        if data.get("command") == "start":
+            video_path = data.get("video_path")
+            prompt = data.get("prompt", "vibrant colors, natural lighting")
+            num_steps = data.get("num_steps", 15)
+            
+            # Start colorization
+            await colorization_pipeline.colorize_video(
+                video_path=video_path,
+                session_id=session_id,
+                prompt=prompt,
+                num_steps=num_steps,
+                websocket=websocket
+            )
+    except WebSocketDisconnect:
+        print(f"Colorization client disconnected: {session_id}")
+    except Exception as e:
+        print(f"Colorization WS Error: {e}")
+        import traceback
+        traceback.print_exc()
 

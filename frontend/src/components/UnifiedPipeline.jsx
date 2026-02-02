@@ -67,7 +67,7 @@ export default function UnifiedPipeline() {
 
         wsRef.current.onopen = () => {
             wsRef.current.send(JSON.stringify({
-                command: 'start_processing',
+                command: 'start',
                 video_path: uploadedPath
             }));
         };

@@ -1,8 +1,0 @@
-celery
-redis
-torch
-torchvision
-numpy
-opencv-python
-Pillow
-pyyaml

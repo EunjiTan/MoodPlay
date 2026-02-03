@@ -23,7 +23,7 @@ export default function UnifiedPipeline() {
     const [segmentationProgress, setSegmentationProgress] = useState(0);
 
     // Colorization State
-    const [prompt, setPrompt] = useState('vibrant colors, natural lighting, high quality');
+    const [prompt, setPrompt] = useState('natural colors, natural lighting, high quality');
     const [isColorizing, setIsColorizing] = useState(false);
     const [colorizationProgress, setColorizationProgress] = useState(0);
     const [outputPath, setOutputPath] = useState('');

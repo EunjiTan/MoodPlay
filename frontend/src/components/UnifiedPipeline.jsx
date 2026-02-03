@@ -77,7 +77,11 @@ export default function UnifiedPipeline() {
                 const data = JSON.parse(event.data);
                 if (data.status === 'completed') {
                     setIsSegmenting(false);
-                    // Don't auto-advance yet, let user review detections
+                    setSegmentationProgress(100);
+                    // Auto-advance to next step
+                    setTimeout(() => {
+                        setCurrentStep(STEPS.PROMPT);
+                    }, 1500);
                 }
                 if (data.progress) setSegmentationProgress(data.progress);
                 if (data.detections) setDetections(data.detections);
@@ -104,6 +108,7 @@ export default function UnifiedPipeline() {
     const startColorization = () => {
         setCurrentStep(STEPS.PROCESSING);
         setIsColorizing(true);
+        setColorizationProgress(0); // Reset progress
 
         wsRef.current = new WebSocket(`${WS_BASE}/ws/colorize/${sessionId}`);
 
@@ -122,6 +127,7 @@ export default function UnifiedPipeline() {
                 if (data.status === 'completed') {
                     setOutputPath(data.output_path);
                     setIsColorizing(false);
+                    setColorizationProgress(100);
                     setCurrentStep(STEPS.RESULT);
                 }
                 if (data.progress) setColorizationProgress(data.progress);
@@ -172,10 +178,16 @@ export default function UnifiedPipeline() {
                         </div>
 
                         <div className="action-row">
-                            {!isSegmenting && segmentationProgress === 0 && (
-                                <button onClick={startSegmentation} className="btn-primary">
-                                    Start Analysis
-                                </button>
+                            {!isSegmenting && (
+                                <>
+                                    <button onClick={startSegmentation} className="btn-primary" style={{ marginRight: '1rem' }}>
+                                        {segmentationProgress > 0 ? 'Restart Analysis' : 'Start Analysis'}
+                                    </button>
+
+                                    <button onClick={confirmSegmentation} className="btn-success">
+                                        Confirm & Next ➜
+                                    </button>
+                                </>
                             )}
 
                             {isSegmenting && (
@@ -183,12 +195,6 @@ export default function UnifiedPipeline() {
                                     <div className="fill" style={{ width: `${segmentationProgress}%` }}></div>
                                     <span>Analyzing... {segmentationProgress.toFixed(0)}%</span>
                                 </div>
-                            )}
-
-                            {segmentationProgress === 100 && (
-                                <button onClick={confirmSegmentation} className="btn-success">
-                                    Confirm & Next ➜
-                                </button>
                             )}
                         </div>
                     </div>

@@ -135,10 +135,31 @@ def stable_video_colorization(
     prev_colorized = None
     palette = PALETTES[palette_name]
     
-    for i in tqdm(range(total_frames)):
+    # Process every Nth frame
+    frame_skip = 2
+    frames_to_process = total_frames // frame_skip
+    print(f"Optimization: Processing every {frame_skip} frames ({frames_to_process} total)")
+    
+    # Adjust output FPS
+    out = cv2.VideoWriter(output_path, fourcc, fps / frame_skip, (512, 512))
+    
+    # State variables
+    prev_gray = None
+    prev_colorized = None
+    palette = PALETTES[palette_name]
+    
+    frame_idx = 0
+    pbar = tqdm(total=frames_to_process)
+    
+    while True:
         ret, frame = cap.read()
         if not ret: break
         
+        # Skip frames
+        if frame_idx % frame_skip != 0:
+            frame_idx += 1
+            continue
+            
         # Prepare Inputs
         # 1. Grayscale (Structure)
         gray_orig = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -155,10 +176,10 @@ def stable_video_colorization(
             # First Frame: Use Grayscale as base hint (or noise)
             init_image = Image.fromarray(cv2.cvtColor(gray_resized, cv2.COLOR_GRAY2RGB))
             strength = 1.0 # Full generation for first frame
-            print(f"Frame 0: Full generation...")
+            print(f"Frame {frame_idx}: Full generation...")
         else:
             # Subsequent Frames: Warp previous result
-            # Calculate Flow
+            # Calculate Flow (Note: Flow from Prev -> Curr)
             flow = compute_optical_flow(prev_gray, gray_resized)
             
             # Warp previous colorized to current position
@@ -195,6 +216,8 @@ def stable_video_colorization(
         prev_colorized = res_bgr
         
         out.write(res_bgr)
+        pbar.update(1)
+        frame_idx += 1
         
     cap.release()
     out.release()

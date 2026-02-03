@@ -59,7 +59,10 @@ class VideoPipeline:
                 # YES: build_sam2_video_predictor reads the video frames into memory/cache.
                 
                 # ISSUE: If SAM2 reads the video itself, we need to ensure we are on the sync frame index.
-                masks_dict = sam3_service.segment_frame_boxes(frame_idx, detections)
+                # YES: build_sam2_video_predictor reads the video frames into memory/cache.
+                
+                # OPTIMIZATION: Switched to Ultralytics SAM for stability. Requires passing the frame image.
+                masks_dict = sam3_service.segment_frame_boxes_with_image(bgr_frame, detections)
                 
                 # C. Visualize
                 masks_list = [masks_dict.get(d.get('track_id')) for d in detections]

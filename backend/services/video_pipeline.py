@@ -44,6 +44,13 @@ class VideoPipeline:
                 if self.active_sessions.get(session_id, {}).get("status") == "stopped":
                     break
                 
+                # DEMO OPTIMIZATION: Skip frames to speed up analysis
+                # Process every 5th frame (Speed x5)
+                if frame_idx % 5 != 0:
+                     frame_idx += 1
+                     continue
+
+                
                 # Convert RGB to BGR for OpenCV/YOLO
                 bgr_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                 
@@ -96,6 +103,20 @@ class VideoPipeline:
                 frame_idx += 1
                 
             self.active_sessions[session_id]["status"] = "completed"
+            
+            if websocket:
+                await websocket.send_json({"status": "completed", "progress": 100})
+            print(f"Pipeline {session_id} finished successfully.")
+            
+            # CRITICAL OPTIMIZATION: Unload SAM to free VRAM for Colorization
+            print("Unloading SAM model to free VRAM...")
+            sam3_service.model = None
+            sam3_service.model_loaded = False
+            import gc
+            import torch
+            gc.collect()
+            torch.cuda.empty_cache()
+            print("VRAM cleared.")
             
         except Exception as e:
             print(f"Pipeline Error: {e}")

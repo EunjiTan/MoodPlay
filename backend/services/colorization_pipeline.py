@@ -132,6 +132,14 @@ class ColorizationPipeline:
             output_dir.mkdir(parents=True, exist_ok=True)
             output_video_path = output_dir / "colorized.mp4"
             
+            # Load Masks (Integration Step)
+            masks_dir = output_dir / "masks"
+            if masks_dir.exists():
+                mask_count = len(list(masks_dir.glob("*.png")))
+                print(f"✓ Found {mask_count} segmentation masks. Using them to guide spatial coherence.")
+            else:
+                print("! No masks found. Proceeding with standard flow-guided colorization.")
+            
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             # Assuming resize to 512x512 for SD
             out = cv2.VideoWriter(str(output_video_path), fourcc, fps, (512, 512))
@@ -187,7 +195,7 @@ class ColorizationPipeline:
                     warped_color = self.warp_flow(prev_colorized, flow)
                     
                     init_image = Image.fromarray(cv2.cvtColor(warped_color, cv2.COLOR_BGR2RGB))
-                    strength = 0.35 # LOW strength = Keep previous colors, just refine
+                    strength = 0.25 # VERY LOW strength = Strict adherence to structure
                 
                 # -----------------------------------------------------
                 # D. DIFFUSION GENERATION
@@ -207,8 +215,28 @@ class ColorizationPipeline:
                 res_np = np.array(result)
                 
                 # -----------------------------------------------------
-                # E. PALETTE CONSTRAINT
+                # E. MASK-GUIDED BLENDING
+                # Load saved masks and apply colors ONLY within masks
                 # -----------------------------------------------------
+                # Find masks for this frame
+                frame_masks = list(masks_dir.glob(f"frame_{frame_idx:04d}_obj_*.png")) if masks_dir.exists() else []
+                
+                if frame_masks:
+                    # Create combined mask from all objects
+                    combined_mask = np.zeros((512, 512), dtype=np.float32)
+                    for mask_path in frame_masks:
+                        mask = np.array(Image.open(mask_path).convert('L').resize((512, 512)))
+                        combined_mask = np.maximum(combined_mask, mask.astype(np.float32) / 255.0)
+                    
+                    # Expand to 3 channels
+                    mask_3ch = np.stack([combined_mask] * 3, axis=-1)
+                    
+                    # Blend: Colorized inside mask, Original grayscale outside
+                    gray_rgb = cv2.cvtColor(gray_resized, cv2.COLOR_GRAY2RGB)
+                    res_np = (res_np * mask_3ch + gray_rgb * (1 - mask_3ch)).astype(np.uint8)
+                    print(f"Frame {frame_idx}: Applied {len(frame_masks)} masks")
+                
+                # Palette constraint
                 res_quant = self.quantize_to_palette(res_np, "cozy_bedroom")
                 res_bgr = cv2.cvtColor(res_quant, cv2.COLOR_RGB2BGR)
                 

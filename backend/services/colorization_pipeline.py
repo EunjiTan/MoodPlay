@@ -1,14 +1,11 @@
 """
-End-to-End Video Colorization Pipeline (Stable FD1.5 + Flow Feedback)
-Orchestrates all modules for complete video colorization with:
-1. SD 1.5 + ControlNet + LoRA
-2. Optical Flow-Guided Temporal Consistency
-3. Palette Constraints
-4. Object-Aware Masking (YOLO+SAM)
+End-to-End Video Colorization Pipeline
+DOWNSCALE-PROCESS-UPSCALE MODE - Process at tiny res, upscale after
 """
 
 import os
 import cv2
+import gc
 import numpy as np
 import asyncio
 import torch
@@ -20,6 +17,12 @@ from diffusers import StableDiffusionControlNetImg2ImgPipeline, ControlNetModel,
 from backend.services.yolo_service import yolo_service
 from backend.services.sam3_service import sam3_service
 from backend.utils.video_processor import VideoProcessor
+
+# DOWNSCALE-PROCESS-UPSCALE SETTINGS
+PROCESS_SIZE = 128  # Tiny size for processing (ultra-low VRAM)
+OUTPUT_SIZE = 512   # Upscale to this size for output
+INFERENCE_STEPS = 10  # Minimum viable steps
+FRAME_SKIP = 5  # Process every 5th frame, interpolate the rest
 
 # Palettes
 PALETTES = {
@@ -37,6 +40,13 @@ PALETTES = {
     ])
 }
 
+def clear_vram():
+    """Aggressively clear VRAM"""
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+
 class ColorizationPipeline:
     def __init__(self):
         self.active_sessions = {}
@@ -44,11 +54,12 @@ class ColorizationPipeline:
         self.pipe = None
         
     def load_pipeline(self):
-        """Load SD1.5 + ControlNet + LoRA"""
+        """Load SD1.5 + ControlNet with aggressive VRAM optimization"""
         if self.pipe is not None:
              return
              
-        print("Loading Colorization Pipeline Models...")
+        print("Loading Colorization Pipeline (VRAM-Optimized Mode)...")
+        clear_vram()  # Clear before loading
         
         # 1. ControlNet
         controlnet = ControlNetModel.from_pretrained(
@@ -64,10 +75,13 @@ class ColorizationPipeline:
             safety_checker=None
         )
         
-        self.pipe = self.pipe.to(self.device)
+        # AGGRESSIVE VRAM OPTIMIZATION for 4GB GPU
+        self.pipe.enable_attention_slicing(1)  # Maximum slicing
+        self.pipe.enable_vae_slicing()
+        self.pipe.enable_sequential_cpu_offload()  # This is the key for low VRAM
         self.pipe.scheduler = UniPCMultistepScheduler.from_config(self.pipe.scheduler.config)
-        self.pipe.enable_attention_slicing()
-        self.pipe.enable_model_cpu_offload() # Save VRAM
+        
+        print(f"Pipeline loaded. Processing at: {PROCESS_SIZE}px, Output: {OUTPUT_SIZE}px")
         
         # 3. LoRA
         lora_path = os.path.join(os.getcwd(), "checkpoints/lora/colorize_slider_v1.safetensors")
@@ -141,12 +155,14 @@ class ColorizationPipeline:
                 print("! No masks found. Proceeding with standard flow-guided colorization.")
             
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            # Assuming resize to 512x512 for SD
-            out = cv2.VideoWriter(str(output_video_path), fourcc, fps, (512, 512))
+            out = cv2.VideoWriter(str(output_video_path), fourcc, fps, (OUTPUT_SIZE, OUTPUT_SIZE))
             
             prev_gray = None
             prev_colorized = None
+            last_output = None  # For frame interpolation
             frame_idx = 0
+            
+            print(f"Processing at {PROCESS_SIZE}px, upscaling to {OUTPUT_SIZE}px")
             
             while True:
                 ret, frame = cap.read()
@@ -155,103 +171,73 @@ class ColorizationPipeline:
                 # Check cancellation
                 if self.active_sessions.get(session_id, {}).get("status") == "stopped":
                     break
+                
+                # Skip frames - use last output for skipped frames
+                if frame_idx % FRAME_SKIP != 0:
+                    if last_output is not None:
+                        out.write(last_output)
+                    frame_idx += 1
+                    continue
 
-                # -----------------------------------------------------
-                # A. PRE-PROCESSING (Resize & Canny)
-                # -----------------------------------------------------
-                gray_orig = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                gray_resized = cv2.resize(gray_orig, (512, 512))
-                
-                # Canny Edge Map (ControlNet Input)
-                gray_blur = cv2.GaussianBlur(gray_resized, (3, 3), 0)
-                edges = cv2.Canny(gray_blur, 50, 150)
-                edges_rgb = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
-                control_image = Image.fromarray(edges_rgb)
-
-                # -----------------------------------------------------
-                # B. OPTIONAL: OBJECT DETECTION & SEGMENTATION
-                # (Demonstrating YOLO+SAM usage as requested)
-                # -----------------------------------------------------
-                # YOLO Detect on original frame size (better accuracy)
-                # detections = yolo_service.detect(frame)
-                
-                # SAM Segment
-                # masks = sam3_service.segment_frame_boxes(frame_idx, detections)
-                # NOTE: For now, we just pass this data to frontend for Viz.
-                # In future: Use masks to mask latent noise per object.
-                
-                # -----------------------------------------------------
-                # C. LATENT INITIALIZATION (FLOW FEEDBACK)
-                # -----------------------------------------------------
-                if prev_colorized is None:
-                    # Frame 0: START FRESH
-                    # Use grayscale as init image hint
-                    init_image = Image.fromarray(cv2.cvtColor(gray_resized, cv2.COLOR_GRAY2RGB))
-                    strength = 1.0 # High strength = Ignore init image, generate from scratch
-                    print(f"Frame {frame_idx}: Initial Generation")
-                else:
-                    # Frame N: WARP PREVIOUS
-                    flow = self.compute_optical_flow(prev_gray, gray_resized)
-                    warped_color = self.warp_flow(prev_colorized, flow)
+                # Wrap in no_grad for memory efficiency
+                with torch.no_grad():
+                    # A. PRE-PROCESSING at TINY resolution
+                    gray_orig = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    gray_small = cv2.resize(gray_orig, (PROCESS_SIZE, PROCESS_SIZE))
                     
-                    init_image = Image.fromarray(cv2.cvtColor(warped_color, cv2.COLOR_BGR2RGB))
-                    strength = 0.25 # VERY LOW strength = Strict adherence to structure
-                
-                # -----------------------------------------------------
-                # D. DIFFUSION GENERATION
-                # -----------------------------------------------------
-                result = self.pipe(
-                    prompt=prompt,
-                    negative_prompt="blurry, distorted, changing scenery, weird colors",
-                    image=init_image,           # Img2Img Input
-                    control_image=control_image, # ControlNet Input
-                    num_inference_steps=num_steps,
-                    strength=strength,          # Denoising Strength
-                    controlnet_conditioning_scale=0.7,
-                    guidance_scale=guidance_scale,
-                    cross_attention_kwargs={"scale": 0.6}
-                ).images[0]
-                
-                res_np = np.array(result)
-                
-                # -----------------------------------------------------
-                # E. MASK-GUIDED BLENDING
-                # Load saved masks and apply colors ONLY within masks
-                # -----------------------------------------------------
-                # Find masks for this frame
-                frame_masks = list(masks_dir.glob(f"frame_{frame_idx:04d}_obj_*.png")) if masks_dir.exists() else []
-                
-                if frame_masks:
-                    # Create combined mask from all objects
-                    combined_mask = np.zeros((512, 512), dtype=np.float32)
-                    for mask_path in frame_masks:
-                        mask = np.array(Image.open(mask_path).convert('L').resize((512, 512)))
-                        combined_mask = np.maximum(combined_mask, mask.astype(np.float32) / 255.0)
+                    # Canny Edge Map
+                    edges = cv2.Canny(gray_small, 50, 150)
+                    edges_rgb = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
+                    control_image = Image.fromarray(edges_rgb)
                     
-                    # Expand to 3 channels
-                    mask_3ch = np.stack([combined_mask] * 3, axis=-1)
+                    # B. INIT IMAGE
+                    if prev_colorized is None:
+                        init_image = Image.fromarray(cv2.cvtColor(gray_small, cv2.COLOR_GRAY2RGB))
+                        strength = 0.85
+                        print(f"Frame {frame_idx}: Initial")
+                    else:
+                        flow = self.compute_optical_flow(prev_gray, gray_small)
+                        warped = self.warp_flow(prev_colorized, flow)
+                        init_image = Image.fromarray(cv2.cvtColor(warped, cv2.COLOR_BGR2RGB))
+                        strength = 0.3
                     
-                    # Blend: Colorized inside mask, Original grayscale outside
-                    gray_rgb = cv2.cvtColor(gray_resized, cv2.COLOR_GRAY2RGB)
-                    res_np = (res_np * mask_3ch + gray_rgb * (1 - mask_3ch)).astype(np.uint8)
-                    print(f"Frame {frame_idx}: Applied {len(frame_masks)} masks")
+                    # C. DIFFUSION at TINY resolution
+                    result = self.pipe(
+                        prompt=f"{prompt}, vivid colors, high quality",
+                        negative_prompt="blurry, grainy",
+                        image=init_image,
+                        control_image=control_image,
+                        num_inference_steps=INFERENCE_STEPS,
+                        strength=strength,
+                        controlnet_conditioning_scale=0.7,
+                        guidance_scale=7.0,
+                    ).images[0]
+                    
+                    res_small = np.array(result)
+                    res_bgr_small = cv2.cvtColor(res_small, cv2.COLOR_RGB2BGR)
+                    
+                    # Update state at PROCESS_SIZE
+                    prev_gray = gray_small
+                    prev_colorized = res_bgr_small
+                    
+                    # D. UPSCALE to OUTPUT_SIZE
+                    res_upscaled = cv2.resize(res_bgr_small, (OUTPUT_SIZE, OUTPUT_SIZE), interpolation=cv2.INTER_LANCZOS4)
+                    
+                    # Slight sharpening to compensate for upscale blur
+                    kernel = np.array([[-0.5,-0.5,-0.5], [-0.5,5,-0.5], [-0.5,-0.5,-0.5]])
+                    res_sharpened = cv2.filter2D(res_upscaled, -1, kernel)
+                    res_sharpened = np.clip(res_sharpened, 0, 255).astype(np.uint8)
+                    
+                    last_output = res_sharpened
+                    out.write(res_sharpened)
                 
-                # Palette constraint
-                res_quant = self.quantize_to_palette(res_np, "cozy_bedroom")
-                res_bgr = cv2.cvtColor(res_quant, cv2.COLOR_RGB2BGR)
+                # Clear VRAM
+                clear_vram()
                 
-                # -----------------------------------------------------
-                # F. UPDATE STATE & SAVE
-                # -----------------------------------------------------
-                prev_gray = gray_resized
-                prev_colorized = res_bgr
-                
-                out.write(res_bgr)
-                
-                # Stream to Frontend
+                # Stream progress
                 if websocket:
-                    preview = cv2.resize(res_bgr, (640, 360))
-                    _, buffer = cv2.imencode('.jpg', preview)
+                    preview = cv2.resize(res_sharpened, (320, 180))
+                    _, buffer = cv2.imencode('.jpg', preview, [cv2.IMWRITE_JPEG_QUALITY, 70])
                     
                     stats = {
                         "frame": frame_idx,

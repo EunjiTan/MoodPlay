@@ -8,7 +8,7 @@ import os
 # Ensure backend is in path if running from root
 from backend.services.sam3_service import sam3_service
 from backend.services.video_pipeline import video_pipeline
-from backend.services.colorization_pipeline import colorization_pipeline
+from backend.services.ffmpeg_colorization import ffmpeg_colorization
 import uuid
 
 from fastapi.staticfiles import StaticFiles
@@ -116,6 +116,7 @@ async def start_colorization(session_id: str, video_path: str, prompt: str = "vi
 async def colorize_websocket(websocket: WebSocket, session_id: str):
     """
     WebSocket endpoint for real-time colorization progress.
+    Uses FFmpeg-based pipeline for VRAM optimization.
     """
     await websocket.accept()
     try:
@@ -124,14 +125,12 @@ async def colorize_websocket(websocket: WebSocket, session_id: str):
         if data.get("command") == "start":
             video_path = data.get("video_path")
             prompt = data.get("prompt", "vibrant colors, natural lighting")
-            num_steps = data.get("num_steps", 15)
             
-            # Start colorization
-            await colorization_pipeline.colorize_video(
+            # Start FFmpeg-based colorization
+            await ffmpeg_colorization.colorize_video(
                 video_path=video_path,
                 session_id=session_id,
                 prompt=prompt,
-                num_steps=num_steps,
                 websocket=websocket
             )
     except WebSocketDisconnect:

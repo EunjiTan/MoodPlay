@@ -4,228 +4,188 @@ const API_BASE = 'http://localhost:8000';
 const WS_BASE = 'ws://localhost:8000';
 
 export default function ColorizationInterface() {
-    const [videoFile, setVideoFile] = useState(null);
-    const [uploadedPath, setUploadedPath] = useState('');
-    const [prompt, setPrompt] = useState('vibrant colors, natural lighting, high quality');
-    const [numSteps, setNumSteps] = useState(15);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [progress, setProgress] = useState(0);
-    const [stats, setStats] = useState(null);
-    const [outputPath, setOutputPath] = useState('');
+  const [videoFile, setVideoFile] = useState(null);
+  const [uploadedPath, setUploadedPath] = useState('');
+  const [prompt, setPrompt] = useState('vibrant colors, natural lighting, high quality');
+  const [numSteps, setNumSteps] = useState(15);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [stats, setStats] = useState(null);
+  const [outputPath, setOutputPath] = useState('');
 
-    const canvasRef = useRef(null);
-    const wsRef = useRef(null);
-    const sessionIdRef = useRef(Date.now().toString());
+  const canvasRef = useRef(null);
+  const wsRef = useRef(null);
+  const sessionIdRef = useRef(Date.now().toString());
 
-    const handleFileUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-        setVideoFile(file);
+    setVideoFile(file);
 
-        // Upload to backend
-        const formData = new FormData();
-        formData.append('file', file);
+    // Upload to backend
+    const formData = new FormData();
+    formData.append('file', file);
 
-        try {
-            const response = await fetch(`${API_BASE}/upload`, {
-                method: 'POST',
-                body: formData,
-            });
+    try {
+      const response = await fetch(`${API_BASE}/upload`, {
+        method: 'POST',
+        body: formData,
+      });
 
-            const data = await response.json();
-            setUploadedPath(data.path);
-            console.log('Video uploaded:', data.path);
-        } catch (error) {
-            console.error('Upload error:', error);
-            alert('Failed to upload video');
-        }
-    };
+      const data = await response.json();
+      setUploadedPath(data.path);
+      console.log('Video uploaded:', data.path);
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Failed to upload video');
+    }
+  };
 
-    const startColorization = () => {
-        if (!uploadedPath) {
-            alert('Please upload a video first');
-            return;
-        }
+  const startColorization = async () => {
+    if (!uploadedPath) {
+      alert('Please upload a video first');
+      return;
+    }
 
-        setIsProcessing(true);
-        setProgress(0);
-        setOutputPath('');
+    setIsProcessing(true);
+    setProgress(0); // Indeterminate or just 0
+    setOutputPath('');
+    setStats({ message: "Running Staged Pipeline... Check Server Console for details." });
 
-        const sessionId = sessionIdRef.current;
+    try {
+      // New Staged Pipeline (REST API)
+      // This is a long-running request (minutes). The browser "Processing" state will hold.
+      // Ideally we'd implement WebSocket progress, but for V1 we used the blocked API.
 
-        // Connect to WebSocket
-        wsRef.current = new WebSocket(`${WS_BASE}/ws/colorize/${sessionId}`);
+      // Import dynamically or assume it's available via api.js import
+      const { startStagedColorization } = await import('../api');
 
-        wsRef.current.onopen = () => {
-            console.log('WebSocket connected');
-            // Send start command
-            wsRef.current.send(JSON.stringify({
-                command: 'start',
-                video_path: uploadedPath,
-                prompt: prompt,
-                num_steps: numSteps,
-            }));
-        };
+      const data = await startStagedColorization(uploadedPath, prompt.toLowerCase().includes("cinematic") ? "cinematic" : "natural");
 
-        wsRef.current.onmessage = async (event) => {
-            if (typeof event.data === 'string') {
-                // JSON stats
-                const data = JSON.parse(event.data);
+      if (data.status === 'completed') {
+        setOutputPath(data.output_path);
+        setProgress(100);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Colorization failed (or timed out). Check server logs.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-                if (data.error) {
-                    alert(`Error: ${data.error}`);
-                    setIsProcessing(false);
-                    return;
-                }
+  const stopProcessing = () => {
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+    setIsProcessing(false);
+  };
 
-                if (data.status === 'completed') {
-                    setOutputPath(data.output_path);
-                    setIsProcessing(false);
-                    setProgress(100);
-                    console.log('Colorization complete!', data.output_path);
-                    return;
-                }
+  return (
+    <div className="colorization-container">
+      <div className="header">
+        <h1>🎨 Video Colorization</h1>
+        <p>Transform grayscale videos into vibrant color using AI</p>
+      </div>
 
-                setStats(data);
-                if (data.progress) {
-                    setProgress(data.progress);
-                }
-            } else {
-                // Binary image data (Blob)
-                const bitmap = await createImageBitmap(event.data);
-                const canvas = canvasRef.current;
-                if (canvas) {
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = bitmap.width;
-                    canvas.height = bitmap.height;
-                    ctx.drawImage(bitmap, 0, 0);
-                }
-            }
-        };
+      <div className="main-content">
+        {/* Upload Section */}
+        <div className="upload-section card">
+          <h2>1. Upload Grayscale Video</h2>
+          <input
+            type="file"
+            accept="video/*"
+            onChange={handleFileUpload}
+            className="file-input"
+            disabled={isProcessing}
+          />
+          {videoFile && (
+            <div className="file-info">
+              ✓ {videoFile.name} ({(videoFile.size / 1024 / 1024).toFixed(2)} MB)
+            </div>
+          )}
+        </div>
 
-        wsRef.current.onclose = () => {
-            console.log('WebSocket closed');
-            setIsProcessing(false);
-        };
+        {/* Prompt Section */}
+        <div className="prompt-section card">
+          <h2>2. Describe the Desired Colors</h2>
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="e.g., vibrant colors, warm sunset tones, natural lighting..."
+            className="prompt-input"
+            rows={3}
+            disabled={isProcessing}
+          />
 
-        wsRef.current.onerror = (error) => {
-            console.error('WebSocket error:', error);
-            setIsProcessing(false);
-        };
-    };
+          <div className="settings">
+            <label>
+              Quality Steps: {numSteps}
+              <input
+                type="range"
+                min="10"
+                max="30"
+                value={numSteps}
+                onChange={(e) => setNumSteps(parseInt(e.target.value))}
+                disabled={isProcessing}
+              />
+              <span className="hint">Higher = better quality but slower</span>
+            </label>
+          </div>
+        </div>
 
-    const stopProcessing = () => {
-        if (wsRef.current) {
-            wsRef.current.close();
-        }
-        setIsProcessing(false);
-    };
+        {/* Control Section */}
+        <div className="control-section card">
+          <h2>3. Start Colorization</h2>
+          {!isProcessing ? (
+            <button
+              onClick={startColorization}
+              className="btn-primary"
+              disabled={!uploadedPath}
+            >
+              🚀 Start Colorization
+            </button>
+          ) : (
+            <button onClick={stopProcessing} className="btn-danger">
+              ⏹ Stop
+            </button>
+          )}
+        </div>
 
-    return (
-        <div className="colorization-container">
-            <div className="header">
-                <h1>🎨 Video Colorization</h1>
-                <p>Transform grayscale videos into vibrant color using AI</p>
+        {/* Preview Section */}
+        {isProcessing && (
+          <div className="preview-section card">
+            <h2>Real-time Preview</h2>
+            <canvas ref={canvasRef} className="preview-canvas" />
+
+            <div className="progress-bar">
+              <div className="progress-fill" style={{ width: `${progress}%` }} />
             </div>
 
-            <div className="main-content">
-                {/* Upload Section */}
-                <div className="upload-section card">
-                    <h2>1. Upload Grayscale Video</h2>
-                    <input
-                        type="file"
-                        accept="video/*"
-                        onChange={handleFileUpload}
-                        className="file-input"
-                        disabled={isProcessing}
-                    />
-                    {videoFile && (
-                        <div className="file-info">
-                            ✓ {videoFile.name} ({(videoFile.size / 1024 / 1024).toFixed(2)} MB)
-                        </div>
-                    )}
-                </div>
+            {stats && (
+              <div className="stats">
+                <span>Frame: {stats.frame + 1} / {stats.total_frames}</span>
+                <span>Progress: {progress.toFixed(1)}%</span>
+                <span>Objects: {stats.objects}</span>
+              </div>
+            )}
+          </div>
+        )}
 
-                {/* Prompt Section */}
-                <div className="prompt-section card">
-                    <h2>2. Describe the Desired Colors</h2>
-                    <textarea
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        placeholder="e.g., vibrant colors, warm sunset tones, natural lighting..."
-                        className="prompt-input"
-                        rows={3}
-                        disabled={isProcessing}
-                    />
+        {/* Output Section */}
+        {outputPath && (
+          <div className="output-section card">
+            <h2>✅ Colorization Complete!</h2>
+            <p>Output saved to: <code>{outputPath}</code></p>
+            <video controls className="output-video">
+              <source src={`${API_BASE}/${outputPath}`} type="video/mp4" />
+            </video>
+          </div>
+        )}
+      </div>
 
-                    <div className="settings">
-                        <label>
-                            Quality Steps: {numSteps}
-                            <input
-                                type="range"
-                                min="10"
-                                max="30"
-                                value={numSteps}
-                                onChange={(e) => setNumSteps(parseInt(e.target.value))}
-                                disabled={isProcessing}
-                            />
-                            <span className="hint">Higher = better quality but slower</span>
-                        </label>
-                    </div>
-                </div>
-
-                {/* Control Section */}
-                <div className="control-section card">
-                    <h2>3. Start Colorization</h2>
-                    {!isProcessing ? (
-                        <button
-                            onClick={startColorization}
-                            className="btn-primary"
-                            disabled={!uploadedPath}
-                        >
-                            🚀 Start Colorization
-                        </button>
-                    ) : (
-                        <button onClick={stopProcessing} className="btn-danger">
-                            ⏹ Stop
-                        </button>
-                    )}
-                </div>
-
-                {/* Preview Section */}
-                {isProcessing && (
-                    <div className="preview-section card">
-                        <h2>Real-time Preview</h2>
-                        <canvas ref={canvasRef} className="preview-canvas" />
-
-                        <div className="progress-bar">
-                            <div className="progress-fill" style={{ width: `${progress}%` }} />
-                        </div>
-
-                        {stats && (
-                            <div className="stats">
-                                <span>Frame: {stats.frame + 1} / {stats.total_frames}</span>
-                                <span>Progress: {progress.toFixed(1)}%</span>
-                                <span>Objects: {stats.objects}</span>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Output Section */}
-                {outputPath && (
-                    <div className="output-section card">
-                        <h2>✅ Colorization Complete!</h2>
-                        <p>Output saved to: <code>{outputPath}</code></p>
-                        <video controls className="output-video">
-                            <source src={`${API_BASE}/${outputPath}`} type="video/mp4" />
-                        </video>
-                    </div>
-                )}
-            </div>
-
-            <style jsx>{`
+      <style jsx>{`
         .colorization-container {
           max-width: 1200px;
           margin: 0 auto;
@@ -420,6 +380,6 @@ export default function ColorizationInterface() {
           font-size: 0.875rem;
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 }

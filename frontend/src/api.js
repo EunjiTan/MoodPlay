@@ -35,4 +35,15 @@ export const generateVideo = async (videoPath, prompt) => {
     return res.data;
 };
 
+export const startStagedColorization = async (videoPath, style = "cinematic") => {
+    // Calls the new Staged Pipeline (Long polling / Blocking)
+    const res = await api.post('/colorize/staged', {
+        video_path: videoPath,
+        style: style,
+        interval: 5,
+        job_id: "web_" + Date.now()
+    });
+    return res.data;
+};
+
 export default api;

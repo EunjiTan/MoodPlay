@@ -140,3 +140,63 @@ async def colorize_websocket(websocket: WebSocket, session_id: str):
         import traceback
         traceback.print_exc()
 
+
+# --------------------------------------------------------------------------------
+# NEW STAGED PIPELINE ENDPOINT (SD1.5 + ControlNext)
+# --------------------------------------------------------------------------------
+from backend.pipeline.orchestrator_v2 import staged_pipeline
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
+# Create a thread pool for long-running pipeline tasks
+pipeline_executor = ThreadPoolExecutor(max_workers=1)
+
+class StagedColorizeRequest(BaseModel):
+    video_path: str
+    style: str = "cinematic"
+    interval: int = 5
+    job_id: str = "web_job"
+
+@app.post("/colorize/staged")
+async def start_staged_colorization(req: StagedColorizeRequest):
+    """
+    Triggers the new VRAM-safe staged pipeline.
+    Runs in background thread to avoid blocking API.
+    """
+    if not os.path.exists(req.video_path):
+        raise HTTPException(status_code=404, detail="Video path not found")
+
+    loop = asyncio.get_event_loop()
+    
+    # We run the blocking pipeline in the executor
+    # Note: This is fire-and-forget for the API response, 
+    # but practically we want to know when it finishes.
+    # For a simple local app, we can await it (blocking this request but not the server loop)
+    # or just return "Started" and let the user check results.
+    
+    # Let's await it so the UI shows "Processing..." spinning until done.
+    # Since it might take minutes, this might timeout typical HTTP clients.
+    # Ideally use WebSockets, but for quick integration:
+    
+    try:
+        await loop.run_in_executor(
+            pipeline_executor,
+            lambda: staged_pipeline.run(
+                input_video=req.video_path,
+                output_name="web_colorized.mp4",
+                style_name=req.style,
+                keyframe_interval=req.interval,
+                job_id=req.job_id,
+                clean_start=True
+            )
+        )
+        return {
+            "status": "completed", 
+            "output_path": "results/web_colorized.mp4",
+            "download_url": "/uploads/../results/web_colorized.mp4" # Path hack or need mount
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# We need to expose 'results' dir too
+app.mount("/results", StaticFiles(directory="results"), name="results")

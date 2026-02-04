@@ -57,7 +57,6 @@ class PropagationStage(StageRunner):
         writer = cv2.VideoWriter(output_video_path, fourcc, 30.0, (w, h))
         
         try:
-        try:
             # We process segment by segment (Keyframe to Keyframe)
             # Find all keyframe indices
             indices = list(range(0, frame_count, keyframe_interval))

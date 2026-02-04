@@ -23,6 +23,7 @@ def main():
     parser.add_argument("--interval", "-k", type=int, default=5, help="Keyframe interval")
     parser.add_argument("--job", "-j", type=str, default="job_001", help="Job ID (folder name)")
     parser.add_argument("--clean", action="store_true", help="Clean workspace before starting")
+    parser.add_argument("--limit", type=int, help="Limit number of frames (for testing)")
     
     args = parser.parse_args()
     
@@ -33,7 +34,8 @@ def main():
             style_name=args.style,
             keyframe_interval=args.interval,
             job_id=args.job,
-            clean_start=args.clean
+            clean_start=args.clean,
+            max_frames=args.limit
         )
     except Exception as e:
         logger.error(f"Staged execution failed: {e}")

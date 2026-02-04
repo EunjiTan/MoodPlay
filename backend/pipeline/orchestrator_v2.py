@@ -31,7 +31,8 @@ class StagedOrchestrator:
             style_name: str = "cinematic",
             keyframe_interval: int = 5,
             job_id: str = "latest_job",
-            clean_start: bool = True):
+            clean_start: bool = True,
+            max_frames: int = None):
         
         logger.info(f"Starting Staged Pipeline (Job: {job_id})")
         
@@ -45,7 +46,7 @@ class StagedOrchestrator:
         # Only run if raw frames are empty or we want to overwrite
         if dm.get_frame_count("raw") == 0:
             stage1 = FrameExtractionStage(dm)
-            stage1.execute(input_video)
+            stage1.execute(input_video, max_frames=max_frames)
             del stage1
             
         # 3. Stage 2: Segmentation (Optional/Always? User requested SAM3)

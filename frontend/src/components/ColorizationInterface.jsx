@@ -6,8 +6,7 @@ const WS_BASE = 'ws://localhost:8000';
 export default function ColorizationInterface() {
   const [videoFile, setVideoFile] = useState(null);
   const [uploadedPath, setUploadedPath] = useState('');
-  const [prompt, setPrompt] = useState('vibrant colors, natural lighting, high quality');
-  const [numSteps, setNumSteps] = useState(15);
+  const [selectedStyle, setSelectedStyle] = useState('sunny_day');
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [stats, setStats] = useState(null);
@@ -51,7 +50,7 @@ export default function ColorizationInterface() {
     setIsProcessing(true);
     setProgress(0); // Indeterminate or just 0
     setOutputPath('');
-    setStats({ message: "Running Staged Pipeline... Check Server Console for details." });
+    setStats({ message: `Applying '${selectedStyle.toUpperCase()}' Palette... This may take a few minutes.` });
 
     try {
       // New Staged Pipeline (REST API)
@@ -61,7 +60,7 @@ export default function ColorizationInterface() {
       // Import dynamically or assume it's available via api.js import
       const { startStagedColorization } = await import('../api');
 
-      const data = await startStagedColorization(uploadedPath, prompt.toLowerCase().includes("cinematic") ? "cinematic" : "natural");
+      const data = await startStagedColorization(uploadedPath, selectedStyle);
 
       if (data.status === 'completed') {
         setOutputPath(data.output_path);
@@ -109,29 +108,35 @@ export default function ColorizationInterface() {
 
         {/* Prompt Section */}
         <div className="prompt-section card">
-          <h2>2. Describe the Desired Colors</h2>
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="e.g., vibrant colors, warm sunset tones, natural lighting..."
-            className="prompt-input"
-            rows={3}
-            disabled={isProcessing}
-          />
+          <h2>2. Choose the Mood</h2>
+
+          <div className="style-grid">
+            {[
+              { id: 'sunny_day', label: '☀️ Sunny Day', desc: 'Bright, vibrant, warm golden light' },
+              { id: 'winter', label: '❄️ Winter', desc: 'Cold, snowy, crisp blue tones' },
+              { id: 'golden_hour', label: '🌅 Golden Hour', desc: 'Sunset glow, dramatic shadows' },
+              { id: 'overcast', label: '☁️ Overcast', desc: 'Soft diffused light, neutral tones' },
+              { id: 'night_scene', label: '🌙 Night Scene', desc: 'Dark, cinematic, artificial lights' },
+              { id: 'autumn', label: '🍂 Autumn', desc: 'Rich earth tones, orange leaves' },
+              { id: 'spring', label: '🌸 Spring', desc: 'Fresh greens, pastel flowers' },
+              { id: 'desert', label: '🏜️ Desert', desc: 'Hot, dry, sandy yellow tones' },
+              { id: 'tropical', label: '🌴 Tropical', desc: 'Vibrant turquoise, lush greens' },
+              { id: 'vintage', label: '📽️ Vintage Film', desc: 'Faded, classic analog look' }
+            ].map(style => (
+              <button
+                key={style.id}
+                className={`style-card ${selectedStyle === style.id ? 'active' : ''}`}
+                onClick={() => setSelectedStyle(style.id)}
+                disabled={isProcessing}
+              >
+                <div className="style-label">{style.label}</div>
+                <div className="style-desc">{style.desc}</div>
+              </button>
+            ))}
+          </div>
 
           <div className="settings">
-            <label>
-              Quality Steps: {numSteps}
-              <input
-                type="range"
-                min="10"
-                max="30"
-                value={numSteps}
-                onChange={(e) => setNumSteps(parseInt(e.target.value))}
-                disabled={isProcessing}
-              />
-              <span className="hint">Higher = better quality but slower</span>
-            </label>
+            {/* Steps hidden for simplicity/magic feel */}
           </div>
         </div>
 
@@ -362,6 +367,44 @@ export default function ColorizationInterface() {
           border-radius: 8px;
           font-weight: 500;
           color: #475569;
+        }
+
+        .style-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .style-card {
+            background: #f1f5f9;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            padding: 1rem;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s;
+        }
+
+        .style-card:hover:not(:disabled) {
+            background: #e2e8f0;
+        }
+
+        .style-card.active {
+            border-color: #667eea;
+            background: #e0e7ff;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+        }
+
+        .style-label {
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.25rem;
+        }
+
+        .style-desc {
+            font-size: 0.8rem;
+            color: #64748b;
         }
 
         .output-video {

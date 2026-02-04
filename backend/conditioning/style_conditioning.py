@@ -12,35 +12,55 @@ class StyleManager:
     """
     
     PRESETS = {
-        "cinematic": {
-            "prompt": "cinematic film look, teal and orange color grading, dramatic lighting, professional photography, 8k, detailed texture",
-            "negative": "flat, amateur, oversaturated, cartoon, anime, low quality, jpeg artifacts, grain, noise",
-            "lora_scale": 0.6
+        "sunny_day": {
+            "prompt": "bright sunny day, clear blue sky, warm sunlight, vibrant colors, happiness, sharp focus, 8k, photorealistic surroundings, natural lighting",
+            "negative": "dark, gloomy, rain, fog, snow, cartoon, anime, artificial, sketch, blurry, watermark, extra objects, illustration",
+            "lora_scale": 0.25
         },
         "winter": {
-            "prompt": "cold winter atmosphere, blue and white tones, frost, snow, crisp cold lighting, photorealistic, 8k",
-            "negative": "warm, orange, summer, sunny, yellow tones, tropical",
-            "lora_scale": 0.7
+            "prompt": "cold winter atmosphere, snow-covered, frost, ice, cool blue tones, winter lighting, soft diffuse light, 8k, photorealistic",
+            "negative": "warm, yellow, orange, summer, sunny, grass, flowers, cartoon, anime, illustration, extra objects, painting",
+            "lora_scale": 0.25
         },
-        "sunny_day": {
-            "prompt": "bright sunny day, warm golden hour colors, vibrant natural lighting, clear blue skies, happiness, photorealistic, 8k",
-            "negative": "dark, gloomy, cold, rain, night, storm, desaturated",
-            "lora_scale": 0.7
+        "golden_hour": {
+            "prompt": "golden hour lighting, warm glow, long shadows, romantic atmosphere, sunset colors, orange and purple hues, photorealistic, 8k",
+            "negative": "cold, blue, harsh light, mid-day, cartoon, anime, drawing, painting, extra people, artificial colors",
+            "lora_scale": 0.25
+        },
+        "overcast": {
+            "prompt": "overcast day, soft diffused lighting, neutral tones, cloud cover, shadowless, balanced exposure, photorealistic, 8k",
+            "negative": "harsh shadows, bright sun, high contrast, cartoon, anime, painting, saturation, vibrant",
+            "lora_scale": 0.2
+        },
+        "night_scene": {
+            "prompt": "night scene, cinematic lighting, dark moody atmosphere, artificial lights, bioluminescence, deep shadows, high contrast, 8k",
+            "negative": "daytime, sun, bright, washed out, cartoon, anime, noise, grain, low quality",
+            "lora_scale": 0.3
+        },
+        "autumn": {
+            "prompt": "autumn season, fall colors, orange and red leaves, cozy atmosphere, earth tones, soft sunlight, photorealistic, 8k",
+            "negative": "green, summer, winter, snow, spring, cartoon, anime, neon colors, artificial",
+            "lora_scale": 0.25
+        },
+        "spring": {
+            "prompt": "spring season, fresh green grass, blooming flowers, pastel colors, soft sunlight, vibrant nature, photorealistic, 8k",
+            "negative": "autumn, dry, dead, brown, winter, snow, cartoon, anime, dark, gloomy",
+            "lora_scale": 0.25
+        },
+        "desert": {
+            "prompt": "desert landscape, hot sun, sand dunes, dry atmosphere, warm yellow and orange tones, harsh lighting, heat haze, photorealistic",
+            "negative": "water, rain, snow, green, lush, forest, cold, cartoon, anime, moist",
+            "lora_scale": 0.3
+        },
+        "tropical": {
+            "prompt": "tropical paradise, vibrant turquoise water, lush green palm trees, saturated colors, exotic, bright sunlight, holiday vibe, 8k",
+            "negative": "cold, grey, dull, desaturated, urban, city, cartoon, anime, drawing",
+            "lora_scale": 0.35
         },
         "vintage": {
-            "prompt": "vintage 1970s film look, kodak portra, warm retro aesthetic, analog photography style, film grain, soft focus",
-            "negative": "modern, digital, sharp, high contrast, hd, 4k",
-            "lora_scale": 0.8
-        },
-        "noir": {
-            "prompt": "film noir style, high contrast, dramatic shadows, moody atmosphere, cinematic lighting, 1940s",
-            "negative": "color, vibrant, bright, flat lighting",
-            "lora_scale": 0.5
-        },
-        "natural": {
-            "prompt": "natural lighting, neutral color grade, photorealistic documentary style, balanced colors, 8k",
-            "negative": "stylized, artistic, filter, oversaturated, cartoon",
-            "lora_scale": 0.5
+            "prompt": "vintage film look, classic movie style, slightly faded colors, film grain, analog aesthetic, nostalgic, photorealistic",
+            "negative": "digital, sharp, modern, hd, 4k, neon, futuristic, cartoon, anime",
+            "lora_scale": 0.3
         }
     }
 

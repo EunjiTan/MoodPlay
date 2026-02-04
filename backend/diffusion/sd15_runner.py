@@ -110,10 +110,10 @@ class SD15Runner:
         image: Image.Image, 
         prompt: str, 
         negative_prompt: str = "", 
-        num_inference_steps: int = 30,
-        guidance_scale: float = 7.5,
-        controlnet_scale: float = 0.7,
-        lora_scale: float = 0.6,
+        num_inference_steps: int = 40, # Increased for quality
+        guidance_scale: float = 6.0, # Lower for realism (prevents frying)
+        controlnet_scale: float = 0.95, # High for strict structure
+        lora_scale: float = 0.3, # Low for subtle color hints
         seed: int = None
     ) -> Image.Image:
         """
@@ -126,8 +126,10 @@ class SD15Runner:
         if seed is not None:
             generator = torch.Generator(device="cpu").manual_seed(seed) # CPU generator for reproducibility across devices
 
+        logger.info(f"Gen: Steps={num_inference_steps}, CFG={guidance_scale}, CN={controlnet_scale}, LoRA={lora_scale}")
+
         # Run Inference
-        result = self.pipe(
+        return self.pipe(
             prompt=prompt,
             negative_prompt=negative_prompt,
             image=image, # ControlNet input (Canny edge map assumed)
@@ -138,8 +140,6 @@ class SD15Runner:
             generator=generator,
             output_type="pil"
         ).images[0]
-
-        return result
 
     def unload_pipeline(self):
         """Unload all models to free VRAM."""

@@ -7,6 +7,7 @@ jinja2
 numpy
 opencv-python-headless
 Pillow
+psutil
 
 # AI / ML
 torch
@@ -15,23 +16,20 @@ torchaudio
 --extra-index-url https://download.pytorch.org/whl/cu121
 
 # SAM-3 / SAM-2
-# Note: Real SAM install usually requires git clone, but we listing dependencies here
+git+https://github.com/facebookresearch/segment-anything.git
 pyyaml
 matplotlib
 tqdm
 
 # VideoControlNet
-diffusers
+diffusers>=0.27.0
 transformers
 accelerate
 safetensors
 scipy
 ultralytics
-decord
-lapx
 
 # Colorization / Diffusion Models
-diffusers>=0.27.0
 controlnext
 xformers
 omegaconf

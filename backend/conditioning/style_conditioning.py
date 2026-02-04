@@ -3,7 +3,7 @@ Style Conditioning Module
 Manages global style presets, prompt engineering, and palette application.
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import random
 
 class StyleManager:

@@ -21,6 +21,7 @@ from backend.models.segmentation import segmenter
 from backend.models.tracking import InstanceTracker
 from backend.conditioning.style_conditioning import style_manager
 from backend.models.controlnet_helpers import extract_canny
+from backend.diffusion.sd15_runner import sd15_runner
 
 logger = get_logger("pipeline.orchestrator")
 

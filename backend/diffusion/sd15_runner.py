@@ -171,10 +171,11 @@ class SD15Runner:
         
         # Always apply bilateral filter (fast, edge-preserving)
         # Scale filter strength with denoise_strength
-        sigma = 50 + (denoise_strength * 100)  # 50-150 range
+        # REDUCED SIGMA: 75 -> 25 to preserve texture ("pixel level realism")
+        sigma = 15 + (denoise_strength * 30)  # 15-45 range (was 50-150)
         image = self._apply_bilateral_filter(
             image, 
-            d=9, 
+            d=5,  # Reduced diameter (was 9)
             sigma_color=sigma, 
             sigma_space=sigma
         )

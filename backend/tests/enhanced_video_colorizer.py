@@ -50,6 +50,15 @@ class EnhancedVideoColorizer:
         self.palette = FourColorPaletteGenerator.get_palette(mood)
         self.style_config = style_manager.get_style_config(mood)
         
+        if self.use_segmentation:
+            try:
+                from backend.models.sam2_segmenter import SAM2Segmenter
+                self.segmenter = SAM2Segmenter(model_size="tiny")  # Use tiny for speed
+                logger.info("  SAM-2 Segmenter initialized")
+            except Exception as e:
+                logger.warning(f"  Could not initialize SAM-2: {e}")
+                self.use_segmentation = False
+                
         logger.info(f"Enhanced Colorizer initialized: {mood}")
         logger.info(f"  Palette: {self.palette['name']}")
         logger.info(f"  Keyframe interval: {keyframe_interval}")
@@ -64,24 +73,23 @@ class EnhancedVideoColorizer:
         
         # Build clothing-aware prompt
         positive = (
-            f"professional color restoration, photorealistic, "
-            f"natural fabric colors, realistic skin tones, "
-            f"proper clothing colors matching the body shape, "
-            f"well-fitted clothes with natural folds and wrinkles, "
-            f"natural lighting on fabric, "
+            f"professional color restoration, 8k resolution, raw photo, "
+            f"intricate fabric texture, high thread count, "
+            f"realistic clothing drapes and folds, "
+            f"lifelike skin pores and texture, "
+            f"natural lighting, volumetric lighting, "
             f"color palette: {', '.join([f'{n} tones' for n in color_names])}, "
-            f"high quality, sharp details, "
+            f"sharp focus, highly detailed, "
             f"{base_prompt}"
         )
         
         negative = (
             "cartoon, anime, painting, drawing, illustration, "
-            "oversaturated colors, neon colors, artificial colors, "
-            "wrong clothing fit, distorted body proportions, "
-            "blurry fabric, plastic looking skin, "
-            "wrong colors, color bleeding, patchy colors, "
-            "added objects, extra limbs, deformed, "
-            "low quality, artifacts, noise"
+            "blur, smooth, flat texture, plastic skin, "
+            "oversaturated, color bleeding, seamless, "
+            "bad clothing fit, floating clothes, "
+            "low resolution, pixelated, artifacts, noise, "
+            "extra limbs, distorted, unnatural"
         )
         
         return positive, negative
@@ -107,26 +115,96 @@ class EnhancedVideoColorizer:
         frame: np.ndarray,
         seed: int = 42
     ) -> np.ndarray:
-        """Colorize a single frame."""
+        """Colorize a single frame using region-aware composition."""
         
-        frame_pil = Image.fromarray(frame)
+        # 1. Resize for speed/consistency (max 512 height)
+        h, w = frame.shape[:2]
+        target_h = 512
+        if h > target_h:
+            scale = target_h / h
+            new_w = int(w * scale)
+            # Ensure divisible by 8 for SD
+            new_w = (new_w // 8) * 8
+            frame_resized = cv2.resize(frame, (new_w, target_h))
+        else:
+            frame_resized = frame.copy()
+            
+        frame_pil = Image.fromarray(frame_resized)
         edges = extract_canny(frame_pil)
         
-        prompt, negative = self._build_enhanced_prompt()
+        # 2. Generate Base/Background
+        # Stronger prompting for background context
+        bg_prompt = f"{self.mood}, interior design, photorealistic, 8k, detailed background, natural lighting"
+        bg_negative = "people, person, clothing, skin, cartoon, anime, grayscale"
         
-        colorized = sd15_runner.generate_frame(
+        bg_image = sd15_runner.generate_frame(
             image=edges,
-            prompt=prompt,
-            negative_prompt=negative,
-            num_inference_steps=self.num_inference_steps,
-            guidance_scale=5.5,
-            controlnet_scale=0.95,
-            lora_scale=self.style_config['lora_scale'],
-            denoise_strength=0.3,
+            prompt=bg_prompt,
+            negative_prompt=bg_negative,
+            num_inference_steps=20,  # Fast but good enough for BG
+            guidance_scale=7.5,
+            controlnet_scale=0.6,    # Looser structure for BG
             seed=seed
         )
         
-        return np.array(colorized)
+        # 3. Generate Person/Clothing (if segmentation is enabled)
+        final_image = bg_image
+        
+        if self.use_segmentation and hasattr(self, 'segmenter'):
+            try:
+                # Get mask for people/clothing
+                # Note: SAM-2 auto-mask returns list of masks. We need to filter/select.
+                # For simplicity in this demo, we'll try to segment the largest central object
+                masks = self.segmenter.segment_frame(frame_pil)
+                
+                # Combine masks that look like people (heuristic: large central masks)
+                person_mask = np.zeros((frame_resized.shape[0], frame_resized.shape[1]), dtype=np.uint8)
+                
+                if masks:
+                    # Simple heuristic: take largest mask
+                    # Ideally we would prompt SAM-2 with point cues, but auto-mask is what we have wrapped
+                    sorted_masks = sorted(masks, key=lambda x: x['area'], reverse=True)
+                    if sorted_masks:
+                        # Take the top mask (likely the main subject)
+                        m = sorted_masks[0]['segmentation']
+                        person_mask = np.logical_or(person_mask, m).astype(np.uint8) * 255
+                
+                if np.sum(person_mask) > 0:
+                    # Generate Person Pass
+                    fg_prompt, fg_nav = self._build_enhanced_prompt("photorealistic person, detailed clothing, realistic skin")
+                    
+                    fg_image = sd15_runner.generate_frame(
+                        image=edges,
+                        prompt=fg_prompt,
+                        negative_prompt=fg_nav,
+                        num_inference_steps=30,  # Higher quality for person
+                        guidance_scale=8.5,      # Stricter prompt adherence
+                        controlnet_scale=0.8,    # Stronger structure
+                        seed=seed
+                    )
+                    
+                    # Composite
+                    # Convert to numpy
+                    bg_np = np.array(bg_image)
+                    fg_np = np.array(fg_image)
+                    
+                    # Blur mask for smooth transition
+                    mask_blur = cv2.GaussianBlur(person_mask, (15, 15), 0)
+                    mask_norm = mask_blur.astype(float) / 255.0
+                    mask_3d = np.stack([mask_norm]*3, axis=2)
+                    
+                    # Blend
+                    comp_np = (fg_np * mask_3d + bg_np * (1 - mask_3d)).astype(np.uint8)
+                    final_image = Image.fromarray(comp_np)
+                    logger.info("  Applied segmentation-based composition")
+                    
+            except Exception as e:
+                logger.error(f"Segmentation failed: {e}")
+                # Fallback to BG only (which is a full generation anyway)
+        
+        # Resize back to original if needed? 
+        # For now return resized to save bandwidth/processing in propagation
+        return np.array(final_image)
     
     def _propagate_color(
         self,

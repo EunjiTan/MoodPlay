@@ -7,9 +7,10 @@ import cv2
 import numpy as np
 from PIL import Image
 
-def extract_canny(image: Image.Image, low_threshold=50, high_threshold=150) -> Image.Image:
+def extract_canny(image: Image.Image, low_threshold=None, high_threshold=None) -> Image.Image:
     """
     Extract Canny edges from a PIL Image.
+    Uses adaptive thresholding if thresholds are not provided.
     Returns RGB PIL Image suitable for ControlNet input.
     """
     image_np = np.array(image)
@@ -20,7 +21,14 @@ def extract_canny(image: Image.Image, low_threshold=50, high_threshold=150) -> I
     else:
         gray = image_np
     
-    # Noise reduction
+    # Adaptive thresholding
+    if low_threshold is None or high_threshold is None:
+        v = np.median(gray)
+        sigma = 0.33
+        low_threshold = int(max(0, (1.0 - sigma) * v))
+        high_threshold = int(min(255, (1.0 + sigma) * v))
+    
+    # Noise reduction (lighter than before)
     gray = cv2.GaussianBlur(gray, (3, 3), 0)
     
     # Canny

@@ -51,7 +51,10 @@ def main():
             job_id=job_id,
             clean_start=True,
             seed=seed,
-            max_frames=60 # Limit to 2 seconds for faster simulation
+            max_frames=60, # Limit to 2 seconds for faster simulation
+            segment_frames=False,
+            track_motion=False,
+            num_inference_steps=15 # FAST Mode for CPU
         )
         
         print(f"Run {i+1} complete. Output: results/{output_filename}")

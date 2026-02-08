@@ -26,7 +26,8 @@ class KeyframeColorizationStage(StageRunner):
         lora_path: str = None, 
         keyframe_interval: int = 10,
         denoise_strength: float = 0.3,
-        seed: int = None
+        seed: int = None,
+        num_inference_steps: int = 20
     ):
         """
         Run keyframe colorization.
@@ -38,6 +39,7 @@ class KeyframeColorizationStage(StageRunner):
             keyframe_interval: Colorize every N frames
             denoise_strength: Post-processing denoising (0-1)
             seed: Random seed for reproducibility
+            num_inference_steps: Number of diffusion steps
         """
         self.logger.info(f"Starting Keyframe Colorization (Mood: {mood}, Interval: {keyframe_interval})")
         
@@ -47,7 +49,7 @@ class KeyframeColorizationStage(StageRunner):
         lora_scale = style_config.get("lora_scale", 0.5)
         
         self.logger.info(f"Prompt: {prompt[:100]}...")
-        self.logger.info(f"LoRA Scale: {lora_scale}, Denoise: {denoise_strength}")
+        self.logger.info(f"LoRA Scale: {lora_scale}, Denoise: {denoise_strength}, Steps: {num_inference_steps}")
         
         # Load Pipeline
         sd15_runner.load_pipeline()
@@ -76,7 +78,7 @@ class KeyframeColorizationStage(StageRunner):
                     image=edges,
                     prompt=prompt,
                     negative_prompt=negative,
-                    num_inference_steps=50,     # Updated default
+                    num_inference_steps=num_inference_steps,     # Use argument
                     guidance_scale=5.5,         # Updated for realism
                     controlnet_scale=0.95,
                     lora_scale=lora_scale,

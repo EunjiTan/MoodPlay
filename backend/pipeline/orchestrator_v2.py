@@ -33,7 +33,10 @@ class StagedOrchestrator:
             job_id: str = "latest_job",
             clean_start: bool = True,
             max_frames: int = None,
-            seed: int = None):
+            seed: int = None,
+            segment_frames: bool = False,
+            track_motion: bool = False,
+            num_inference_steps: int = 20):
         
         logger.info(f"Starting Staged Pipeline (Job: {job_id})")
         
@@ -50,21 +53,21 @@ class StagedOrchestrator:
             stage1.execute(input_video, max_frames=max_frames)
             del stage1
             
-        # 3. Stage 2: Segmentation (Optional/Always? User requested SAM3)
-        # Even if we don't strictly use masks in simple colorization, we generate them for "Professional Grade"
-        # and future-proofing.
-        stage2 = SegmentationStage(dm)
-        stage2.execute()
-        del stage2
+        # 3. Stage 2: Segmentation (Optional)
+        if segment_frames:
+            stage2 = SegmentationStage(dm)
+            stage2.execute()
+            del stage2
         
-        # 4. Stage 3: Tracking
-        stage3 = TrackingStage(dm)
-        stage3.execute()
-        del stage3
+        # 4. Stage 3: Tracking (Optional)
+        if track_motion:
+            stage3 = TrackingStage(dm)
+            stage3.execute()
+            del stage3
         
         # 5. Stage 4: Keyframe Colorization
         stage4 = KeyframeColorizationStage(dm)
-        stage4.execute(style_name=style_name, keyframe_interval=keyframe_interval, seed=seed)
+        stage4.execute(mood=style_name, keyframe_interval=keyframe_interval, seed=seed, num_inference_steps=num_inference_steps)
         del stage4
         
         # 6. Stage 5: Propagation / Assembly

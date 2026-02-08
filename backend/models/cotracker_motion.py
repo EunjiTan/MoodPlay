@@ -31,15 +31,16 @@ class CoTrackerMotion:
     
     CHECKPOINT_MAP = {
         "cotracker2": "cotracker2.pth",
-        "cotracker": "cotracker.pth"
+        "cotracker": "cotracker.pth",
+        "cotracker3": "scaled_offline.pth"
     }
     
-    def __init__(self, model_name: str = "cotracker2"):
+    def __init__(self, model_name: str = "cotracker3"):
         """
         Initialize CoTracker.
         
         Args:
-            model_name: 'cotracker2' (recommended) or 'cotracker'
+            model_name: 'cotracker3' (recommended), 'cotracker2', or 'cotracker'
         """
         if model_name not in self.CHECKPOINT_MAP:
             raise ValueError(f"Unknown model: {model_name}. "

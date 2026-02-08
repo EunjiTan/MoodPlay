@@ -146,7 +146,8 @@ class UpdatedColorizationPipeline:
         mood: str = "sunny_day",
         base_prompt: str = "",
         denoise_strength: float = 0.3,
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
+        num_inference_steps: int = 20
     ) -> np.ndarray:
         """
         Colorize a single grayscale frame.
@@ -184,7 +185,7 @@ class UpdatedColorizationPipeline:
             image=edges,
             prompt=prompt,
             negative_prompt=negative,
-            num_inference_steps=50,
+            num_inference_steps=num_inference_steps,
             guidance_scale=5.5,
             controlnet_scale=0.95,
             lora_scale=lora_scale,
@@ -203,7 +204,8 @@ class UpdatedColorizationPipeline:
         base_prompt: str = "",
         seed: Optional[int] = None,
         track_motion: bool = True,
-        segment_frames: bool = False
+        segment_frames: bool = False,
+        num_inference_steps: int = 20
     ) -> List[np.ndarray]:
         """
         Process entire video through the pipeline.
@@ -217,6 +219,7 @@ class UpdatedColorizationPipeline:
             seed: Random seed
             track_motion: Whether to run CoTracker
             segment_frames: Whether to run SAM-2 segmentation
+            num_inference_steps: Number of diffusion steps
             
         Returns:
             List of colorized RGB numpy arrays
@@ -263,7 +266,8 @@ class UpdatedColorizationPipeline:
                 mood=mood,
                 base_prompt=base_prompt,
                 denoise_strength=denoise_strength,
-                seed=seed
+                seed=seed,
+                num_inference_steps=num_inference_steps
             )
             colorized_keyframes[idx] = colorized
         

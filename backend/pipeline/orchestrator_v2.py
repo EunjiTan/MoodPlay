@@ -32,7 +32,8 @@ class StagedOrchestrator:
             keyframe_interval: int = 5,
             job_id: str = "latest_job",
             clean_start: bool = True,
-            max_frames: int = None):
+            max_frames: int = None,
+            seed: int = None):
         
         logger.info(f"Starting Staged Pipeline (Job: {job_id})")
         
@@ -63,7 +64,7 @@ class StagedOrchestrator:
         
         # 5. Stage 4: Keyframe Colorization
         stage4 = KeyframeColorizationStage(dm)
-        stage4.execute(style_name=style_name, keyframe_interval=keyframe_interval)
+        stage4.execute(style_name=style_name, keyframe_interval=keyframe_interval, seed=seed)
         del stage4
         
         # 6. Stage 5: Propagation / Assembly

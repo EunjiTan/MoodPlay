@@ -31,9 +31,9 @@ PALETTES = {
     }
 }
 
-def create_color_map(height, width, palette_name='natural', L_channel=None):
+def create_color_map(height, width, palette_name='natural', L_channel=None, mask=None, mask_palette=None):
     """
-    Creates a semantic color map based on vertical position and brightness.
+    Creates a semantic color map based on vertical position, brightness, and optional segmentation mask.
     """
     palette = PALETTES.get(palette_name, PALETTES['natural'])
 
@@ -68,7 +68,7 @@ def create_color_map(height, width, palette_name='natural', L_channel=None):
     subject_mask /= total_mask
     veg_mask /= total_mask
 
-    # Blend colors
+    # Blend colors (Base layer / Gaps)
     A = (sky_mask * palette['sky'][0] +
          ground_mask * palette['ground'][0] +
          subject_mask * palette['skin'][0] +
@@ -79,9 +79,23 @@ def create_color_map(height, width, palette_name='natural', L_channel=None):
          subject_mask * palette['skin'][1] +
          veg_mask * palette['vegetation'][1])
 
+    # 3. Apply Segmentation Masks (Refinement)
+    if mask is not None and mask_palette is not None:
+        # Resize mask to match frame if necessary
+        if mask.shape[:2] != (height, width):
+            mask = cv2.resize(mask, (width, height), interpolation=cv2.INTER_NEAREST)
+
+        for obj_id, color_key in mask_palette.items():
+            if color_key in palette:
+                obj_color = palette[color_key]
+                # Apply mask where ID matches
+                obj_mask = (mask == obj_id)
+                A[obj_mask] = obj_color[0]
+                B[obj_mask] = obj_color[1]
+
     return A.astype(np.uint8), B.astype(np.uint8)
 
-def colorize_frame(frame, palette_name='natural', prev_color=None, alpha=0.5):
+def colorize_frame(frame, palette_name='natural', prev_color=None, alpha=0.5, mask=None, mask_palette=None):
     """
     Colorizes a single grayscale frame.
     """
@@ -96,7 +110,7 @@ def colorize_frame(frame, palette_name='natural', prev_color=None, alpha=0.5):
 
     # 2. Semantic Color Assignment
     height, width = L.shape
-    A, B = create_color_map(height, width, palette_name, L_channel=L)
+    A, B = create_color_map(height, width, palette_name, L_channel=L, mask=mask, mask_palette=mask_palette)
 
     # 3. Merge to LAB and convert to BGR
     lab = cv2.merge([L, A, B])
@@ -115,7 +129,7 @@ def colorize_frame(frame, palette_name='natural', prev_color=None, alpha=0.5):
 
     return colorized
 
-def process_video(input_path, output_path, palette_name='natural', limit_frames=None):
+def process_video(input_path, output_path, palette_name='natural', limit_frames=None, mask_dir=None, mask_palette=None):
     cap = cv2.VideoCapture(input_path)
     if not cap.isOpened():
         print(f"Error: Could not open video {input_path}")
@@ -126,7 +140,7 @@ def process_video(input_path, output_path, palette_name='natural', limit_frames=
     fps = cap.get(cv2.CAP_PROP_FPS)
     if fps == 0: fps = 24
 
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fourcc = cv2.VideoWriter_fourcc(*'m', 'p', '4', 'v')
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
     prev_frame = None
@@ -137,7 +151,18 @@ def process_video(input_path, output_path, palette_name='natural', limit_frames=
         if not ret:
             break
 
-        colorized = colorize_frame(frame, palette_name, prev_color=prev_frame)
+        # Load mask if available
+        mask = None
+        if mask_dir:
+            mask_path = os.path.join(mask_dir, f"{count:06d}.npz")
+            if os.path.exists(mask_path):
+                try:
+                    data = np.load(mask_path)
+                    mask = data['mask']
+                except:
+                    pass
+
+        colorized = colorize_frame(frame, palette_name, prev_color=prev_frame, mask=mask, mask_palette=mask_palette)
         out.write(colorized)
 
         prev_frame = colorized
@@ -172,13 +197,30 @@ def create_comparison(input_path, output_path, result_path):
     cap_out.release()
 
 if __name__ == "__main__":
-    # Video 1: Natural Palette
-    print("Processing Video 1 (Natural)...")
+    # Define a mapping for segmented objects
+    # This ensures that segmented areas get specific colors and don't overlap with heuristic gaps
+    mask_palette = {
+        1: 'skin',      # Person 1
+        2: 'skin',      # Person 2
+        3: 'building',  # Car/Building
+        4: 'vegetation',# Tree
+        5: 'sky'        # Sky segment
+    }
+
+    # Video 1: Natural Palette (Heuristic only)
+    print("Processing Video 1 (Natural - Heuristic)...")
     process_video("enhanced_realism.mp4", "enhanced_realism_AI_COLORIZED.mp4", palette_name='natural')
 
-    # Video 2: Warm Palette
-    print("Processing Video 2 (Warm)...")
-    process_video("enhanced_segmented_5s.mp4", "enhanced_segmented_5s_AI_COLORIZED.mp4", palette_name='warm')
+    # Video 2: Warm Palette (Mask-Aware)
+    # This demonstrates "only coloring the segmented areas and letting LoRA (heuristic) fill the gaps"
+    print("Processing Video 2 (Warm - Mask-Aware)...")
+    process_video(
+        "enhanced_segmented_5s.mp4",
+        "enhanced_segmented_5s_AI_COLORIZED.mp4",
+        palette_name='warm',
+        mask_dir='workspace/job_001/2_masks',
+        mask_palette=mask_palette
+    )
 
     # Comparison Images
     print("Creating Comparison Images...")

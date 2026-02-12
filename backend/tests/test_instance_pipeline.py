@@ -30,7 +30,7 @@ def test_pipeline_config():
     assert CFG.LORA_RANK_STANDARD == 16
     assert CFG.LORA_RANK_STYLIZED == 32
     assert isinstance(CFG.TARGET_SIZE, tuple)
-    print("  ✓ PipelineConfig – all thresholds correct")
+    print("  PASS PipelineConfig – all thresholds correct")
     return True
 
 
@@ -77,7 +77,7 @@ def test_lab_color_engine():
     corrected, final_de = correct_instance_color(output, target_lab, mask)
     assert corrected.shape == (32, 32, 3)
 
-    print("  ✓ LABColorEngine – conversions, ΔE, palette correction all ok")
+    print("  PASS LABColorEngine – conversions, ΔE, palette correction all ok")
     return True
 
 
@@ -122,7 +122,7 @@ def test_instance_registry():
     state = reg.to_dict()
     assert isinstance(state, dict)
 
-    print("  ✓ InstanceRegistry – register, confirm, deactivate, re-entry, override all ok")
+    print("  PASS InstanceRegistry – register, confirm, deactivate, re-entry, override all ok")
     return True
 
 
@@ -176,7 +176,7 @@ def test_quality_metrics():
     report = build_video_report([fr])
     assert report.total_frames == 1
 
-    print("  ✓ QualityMetrics – ICA, TCV, BLS, GPC, SSIM, report all ok")
+    print("  PASS QualityMetrics – ICA, TCV, BLS, GPC, SSIM, report all ok")
     return True
 
 
@@ -213,7 +213,7 @@ def test_enhanced_sam2():
     not_dilated = SAM2Segmenter.dilate_soft_boundaries(mask, "car")
     assert np.array_equal(not_dilated, mask)
 
-    print("  ✓ SAM2Segmenter – enhanced API and static methods verified")
+    print("  PASS SAM2Segmenter – enhanced API and static methods verified")
     return True
 
 
@@ -238,7 +238,7 @@ def test_enhanced_controlnet():
     boundary = cs.inject_mask_conditioning(masks, (64, 64))
     assert boundary.size == (64, 64)
 
-    print("  ✓ ControlNetService – enhanced API verified")
+    print("  PASS ControlNetService – enhanced API verified")
     return True
 
 
@@ -259,7 +259,7 @@ def test_enhanced_lora():
     # Temporal stability (no LoRA loaded → should pass)
     assert ls.validate_temporal_stability()
 
-    print("  ✓ LoRAService – enhanced API verified")
+    print("  PASS LoRAService – enhanced API verified")
     return True
 
 
@@ -287,7 +287,7 @@ def test_enhanced_instance_hints():
     warped = InstanceHintManager.warp_hint_mask(hint, M)
     assert warped.shape == hint.shape
 
-    print("  ✓ InstanceHintManager – enhanced API verified")
+    print("  PASS InstanceHintManager – enhanced API verified")
     return True
 
 
@@ -312,7 +312,7 @@ def test_temporal_coherence():
     median = tc.apply_temporal_median_filter(frame)
     assert median.shape == frame.shape
 
-    print("  ✓ TemporalCoherence – enhanced API verified")
+    print("  PASS TemporalCoherence – enhanced API verified")
     return True
 
 
@@ -332,7 +332,7 @@ def test_pipeline_structure():
     assert hasattr(InstanceGuidedPipeline, "_validate_and_correct")
     assert hasattr(InstanceGuidedPipeline, "_run_diffusion")
 
-    print("  ✓ InstanceGuidedPipeline – structure and imports verified")
+    print("  PASS InstanceGuidedPipeline – structure and imports verified")
     return True
 
 
@@ -371,7 +371,7 @@ def run_all_tests():
         except Exception as e:
             failed += 1
             errors.append((name, str(e)))
-            print(f"  ✗ {name}: {e}")
+            print(f"  FAIL {name}: {e}")
 
     print("\n" + "=" * 60)
     print(f" Results: {passed}/{len(tests)} passed, {failed} failed")

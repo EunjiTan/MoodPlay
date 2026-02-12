@@ -67,7 +67,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="MoodPlay Instance-Guided Video Colorization"
     )
-    parser.add_argument("video", help="Path to input video file")
+    parser.add_argument("video", nargs="?", default=None,
+                        help="Path to input video file")
     parser.add_argument("--mood", default="sunny_day",
                         help="Palette mood (default: sunny_day)")
     parser.add_argument("--seed", type=int, default=None,

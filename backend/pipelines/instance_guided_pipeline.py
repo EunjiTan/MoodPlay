@@ -522,9 +522,15 @@ class InstanceGuidedPipeline:
 
         # Use FourColorPaletteGenerator
         try:
-            palette = self._palette_gen.get_palette(config.mood)
-            if palette:
-                return palette
+            palette_info = self._palette_gen.get_palette(config.mood)
+            if palette_info and "colors" in palette_info:
+                colors = palette_info["colors"]
+                names = palette_info.get("color_names", ["primary", "accent", "secondary", "tertiary"])
+                result = {}
+                for i, color in enumerate(colors):
+                    role = names[i].lower().replace(" ", "_") if i < len(names) else f"color_{i}"
+                    result[role] = list(color)
+                return result
         except Exception:
             pass
 

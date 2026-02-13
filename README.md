@@ -137,7 +137,11 @@ The pipeline computes and reports these metrics after each run:
 
 ## Available Mood Presets
 
+<<<<<<< HEAD
 `sunny_day` · `golden_hour` · `winter` · `autumn` · `cinematic` · `neon_cyberpunk`
+=======
+`sunny_day` · `golden_hour` · `winter` · `autumn` · · `cinematic` · `neon_cyberpunk` ·
+>>>>>>> 2f27ca41cde73f8e6a7b90ca377e1497a84f64d8
 
 ## Requirements
 

@@ -131,7 +131,6 @@ The pipeline computes and reports these metrics after each run:
 
 | Metric | Target | Description |
 |--------|--------|-------------|
-| **ICA** (ΔE*ab) | < 5.0 | Instance Color Accuracy — perceptual distance from palette |
 | **TCV** | < 8.0 | Temporal Color Variance — frame-to-frame colour stability |
 | **BLS** | 0.0 | Boundary Leakage Score — colour bleeding across masks |
 | **GPC** | > 0.5% each | Global Palette Coverage — all palette entries represented |
@@ -139,14 +138,10 @@ The pipeline computes and reports these metrics after each run:
 
 ## Available Mood Presets
 
-`sunny_day` · `golden_hour` · `winter` · `autumn` · `spring_morning` · `rainy` · `twilight` · `cinematic` · `neon_cyberpunk` · `vintage_sepia`
+`sunny_day` · `golden_hour` · `winter` · `autumn` · · `cinematic` · `neon_cyberpunk` ·
 
 ## Requirements
 
 - Python 3.10+
 - CUDA-capable GPU (8+ GB VRAM recommended)
 - PyTorch 2.0+ with CUDA support
-
-## License
-
-MIT

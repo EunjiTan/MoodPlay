@@ -11,7 +11,7 @@ Input Video  -->  YOLOv11 Detect  -->  SAM-2 Segment  -->  CoTracker Track
 Output Video  <--  Quality Report  <--  Validate/Correct  <--  Diffuse (ControlNet + LoRA)
 ```
 
-**Per-frame loop (F1–F7):**
+**Per-frame loop (F1–F6):**
 
 | Step | Component | Purpose |
 |------|-----------|---------|
@@ -20,8 +20,7 @@ Output Video  <--  Quality Report  <--  Validate/Correct  <--  Diffuse (ControlN
 | F3 | CoTracker | Joint multi-instance point tracking |
 | F4 | Temporal Engine | Warp previous frame colours to current frame |
 | F5 | ControlNet + LoRA | Conditional diffusion colorization |
-| F6 | LAB Validator | Palette correction if ΔE > 5.0, BLS check |
-| F7 | Registry Update | Log colour history, update temporal state |
+| F6 | Registry Update | Log colour history, update temporal state |
 
 ## Project Structure
 
@@ -84,7 +83,7 @@ python run.py --test
 python run.py uploads/my_video.mp4
 
 # With options
-python run.py uploads/my_video.mp4 --mood golden_hour --seed 42 --steps 20
+python run.py uploads/my_video.mp4 --mood Sunny_day --seed 42 --steps 20
 
 # Specify output path
 python run.py uploads/my_video.mp4 --output results/output.mp4
@@ -99,7 +98,7 @@ from backend.pipelines.instance_guided_pipeline import (
 
 pipeline = InstanceGuidedPipeline()
 config = PipelineRunConfig(
-    mood="golden_hour",
+    mood="Sunny_day",
     seed=42,
     num_inference_steps=20,
     keyframe_interval=5,
@@ -131,7 +130,6 @@ The pipeline computes and reports these metrics after each run:
 
 | Metric | Target | Description |
 |--------|--------|-------------|
-| **ICA** (ΔE*ab) | < 5.0 | Instance Color Accuracy — perceptual distance from palette |
 | **TCV** | < 8.0 | Temporal Color Variance — frame-to-frame colour stability |
 | **BLS** | 0.0 | Boundary Leakage Score — colour bleeding across masks |
 | **GPC** | > 0.5% each | Global Palette Coverage — all palette entries represented |
@@ -139,14 +137,10 @@ The pipeline computes and reports these metrics after each run:
 
 ## Available Mood Presets
 
-`sunny_day` · `golden_hour` · `winter` · `autumn` · `spring_morning` · `rainy` · `twilight` · `cinematic` · `neon_cyberpunk` · `vintage_sepia`
+`sunny_day` · `golden_hour` · `winter` · `autumn` · `cinematic` · `neon_cyberpunk`
 
 ## Requirements
 
 - Python 3.10+
 - CUDA-capable GPU (8+ GB VRAM recommended)
 - PyTorch 2.0+ with CUDA support
-
-## License
-
-MIT

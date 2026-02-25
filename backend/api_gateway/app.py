@@ -3,12 +3,30 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import shutil
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Import Service (Local Monolith style)
 # Ensure backend is in path if running from root
-from backend.services.sam3_service import sam3_service
-from backend.services.video_pipeline import video_pipeline
-from backend.services.ffmpeg_colorization import ffmpeg_colorization
+try:
+    from backend.services.sam3_service import sam3_service
+except ImportError:
+    sam3_service = None
+    logger.warning("sam3_service not available; /segment/init and / endpoints will be limited")
+
+try:
+    from backend.services.video_pipeline import video_pipeline
+except ImportError:
+    video_pipeline = None
+    logger.warning("video_pipeline not available; WebSocket /ws/process endpoint will be limited")
+
+try:
+    from backend.services.ffmpeg_colorization import ffmpeg_colorization
+except ImportError:
+    ffmpeg_colorization = None
+    logger.warning("ffmpeg_colorization not available; WebSocket /ws/colorize endpoint will be limited")
+
 import uuid
 
 from fastapi.staticfiles import StaticFiles
@@ -39,7 +57,8 @@ class ClickRequest(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"status": "MoodPlay Local API Running", "model_device": sam3_service.device}
+    device = sam3_service.device if sam3_service else "unavailable"
+    return {"status": "MoodPlay Local API Running", "model_device": device}
 
 @app.post("/upload")
 def upload_video(file: UploadFile = File(...)):
@@ -55,6 +74,8 @@ def upload_video(file: UploadFile = File(...)):
 def init_segmentation(video_path: str):
     if not os.path.exists(video_path):
         raise HTTPException(status_code=404, detail="Video not found")
+    if sam3_service is None:
+        raise HTTPException(status_code=503, detail="Segmentation service not available")
     try:
         res = sam3_service.init_session(video_path)
         return res
@@ -95,10 +116,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         data = await websocket.receive_json()
         if data.get("command") == "start":
             video_path = data.get("video_path")
-            
+            if video_pipeline is None:
+                await websocket.send_json({"error": "video_pipeline service not available"})
+                return
             # Start pipeline
             await video_pipeline.process_video(video_path, session_id, websocket)
-            
+
     except WebSocketDisconnect:
         print(f"Client disconnected: {session_id}")
     except Exception as e:
@@ -125,7 +148,9 @@ async def colorize_websocket(websocket: WebSocket, session_id: str):
         if data.get("command") == "start":
             video_path = data.get("video_path")
             prompt = data.get("prompt", "vibrant colors, natural lighting")
-            
+            if ffmpeg_colorization is None:
+                await websocket.send_json({"error": "ffmpeg_colorization service not available"})
+                return
             # Start FFmpeg-based colorization
             await ffmpeg_colorization.colorize_video(
                 video_path=video_path,
@@ -144,7 +169,11 @@ async def colorize_websocket(websocket: WebSocket, session_id: str):
 # --------------------------------------------------------------------------------
 # NEW STAGED PIPELINE ENDPOINT (SD1.5 + ControlNext)
 # --------------------------------------------------------------------------------
-from backend.pipeline.orchestrator_v2 import staged_pipeline
+try:
+    from backend.pipelines.orchestrator_v2 import staged_pipeline
+except ImportError:
+    staged_pipeline = None
+    logger.warning("staged_pipeline not available; /colorize/staged endpoint will return 503")
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
@@ -165,18 +194,10 @@ async def start_staged_colorization(req: StagedColorizeRequest):
     """
     if not os.path.exists(req.video_path):
         raise HTTPException(status_code=404, detail="Video path not found")
+    if staged_pipeline is None:
+        raise HTTPException(status_code=503, detail="Staged pipeline service not available")
 
     loop = asyncio.get_event_loop()
-    
-    # We run the blocking pipeline in the executor
-    # Note: This is fire-and-forget for the API response, 
-    # but practically we want to know when it finishes.
-    # For a simple local app, we can await it (blocking this request but not the server loop)
-    # or just return "Started" and let the user check results.
-    
-    # Let's await it so the UI shows "Processing..." spinning until done.
-    # Since it might take minutes, this might timeout typical HTTP clients.
-    # Ideally use WebSockets, but for quick integration:
     
     try:
         await loop.run_in_executor(

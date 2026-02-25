@@ -531,8 +531,8 @@ class InstanceGuidedPipeline:
                     role = names[i].lower().replace(" ", "_") if i < len(names) else f"color_{i}"
                     result[role] = list(color)
                 return result
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"  ⚠ Palette generation failed for mood '{config.mood}': {e}, using default palette")
 
         # Default palette
         return {
@@ -639,8 +639,8 @@ class InstanceGuidedPipeline:
         print("▸ Unloading models…")
         try:
             self._sam.unload_model()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"  ⚠ SAM unload failed: {e}")
 
         if self._diffusion_pipe is not None:
             del self._diffusion_pipe

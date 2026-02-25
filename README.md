@@ -130,6 +130,7 @@ The pipeline computes and reports these metrics after each run:
 
 | Metric | Target | Description |
 |--------|--------|-------------|
+| **ICA** | < 5.0 | Instance Colour Accuracy — mean ΔE*ab vs. palette target per object |
 | **TCV** | < 8.0 | Temporal Color Variance — frame-to-frame colour stability |
 | **BLS** | 0.0 | Boundary Leakage Score — colour bleeding across masks |
 | **GPC** | > 0.5% each | Global Palette Coverage — all palette entries represented |
@@ -137,11 +138,7 @@ The pipeline computes and reports these metrics after each run:
 
 ## Available Mood Presets
 
-<<<<<<< HEAD
 `sunny_day` · `golden_hour` · `winter` · `autumn` · `cinematic` · `neon_cyberpunk`
-=======
-`sunny_day` · `golden_hour` · `winter` · `autumn` · · `cinematic` · `neon_cyberpunk` ·
->>>>>>> 2f27ca41cde73f8e6a7b90ca377e1497a84f64d8
 
 ## Requirements
 

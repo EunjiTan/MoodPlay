@@ -20,7 +20,7 @@ export const sendClick = async (videoPath, frameIdx, objectId, points, labels) =
     const res = await api.post('/segment/click', {
         video_path: videoPath,
         frame_idx: frameIdx,
-        object_id: int(objectId),
+        object_id: parseInt(objectId),
         points: points, // [[x,y]]
         labels: labels  // [1]
     });
